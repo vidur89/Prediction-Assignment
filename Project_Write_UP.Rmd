@@ -1,0 +1,105 @@
+---
+title: "Project_Writeup_Machine_Learning"
+output: html_document
+---
+
+#Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+#Data 
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+#Overview 
+The goal of the project is to predict the manner in which exercise is done. This is the "class" variable in the training set. This report describes how the model is built, how cross validation was used, what is the expected out of sample error is, and choices made. The prediction model to predict 20 different test cases. 
+
+#Load data and Neccessary Libraries 
+```{r}
+library(caret)
+library(ggplot2)
+library(randomForest)
+library(rattle)
+set.seed(12345)
+
+training <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+```
+
+#Clean the Data
+* Eliminate useless predictors/columns
+* There are a lot of columns with missing NA values. 
+* Remove the NA values from the training data
+
+```{r}
+training <- training[, 7:160]
+testing  <- testing[, 7:160]
+
+NAs <- apply(training, 2, function(x) { sum(is.na(x)) })
+NAs2 <- apply(testing, 2, function(x) { sum(is.na(x)) })
+
+training <- training[, which(NAs == 0)]
+testing <- testing[, which(NAs == 0)]
+
+
+```
+
+#Cross Validation 
+
+* For cross validation we are spliting up the samples with the class variable. We are going to split the dataset 0.5 into a training and testing dataset. This leaves room for enough training data without the data getting too large for an expensive Random Forest model. We use .40 for training set in light of time. 
+
+```{r}
+# Partion the training set into two. 40% Training and 60% Testing
+inTrain  <- createDataPartition(y = training$classe, p=0.4,list=FALSE)
+mytrain <- training[inTrain ,]
+mytest <- training[-inTrain, ]
+
+```
+By this point we have 7850 observations and 54 variables 
+
+#Random Forest Model for Prediction
+* We have been using Random Forest in our quizes using the train() function from the caret package. It is good to use random forest when handling a large number of inputs.
+Here for a train control for CV we use 5-fold. As 10 fold was too slow
+
+```{r}
+tc = trainControl(method = "cv", number = 5)
+modFit1 <- train(mytrain$classe ~.,data = mytrain,method="rf", trControl = tc,  prox = TRUE, allowParallel = TRUE)
+
+modFit1$resample
+```
+
+```{r}
+print(modFit1)
+```
+The OOB estimate of error is 60%
+```{r}
+print(modFit1$finalModel)
+```
+
+## Expected Out of Sample rate 
+* We use a cross validation with the remaining data to get this error estimation
+* The expected out of error rate is less than 1% the accuracy of the model is 99.40% given by the model
+
+#Predict the 20 test cases. Function output given by instuctor
+
+```{r}
+validationtest_prediction<-predict(modFit1, newdata=testing)
+validationtest_prediction
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(validationtest_prediction)
+```
+
+
